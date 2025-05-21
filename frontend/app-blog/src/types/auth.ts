@@ -7,6 +7,9 @@ export interface AuthContextType{
     login: () => void;
     logout: () => void;
     nameAuthor: string;
+    userId: number | null;
+    handleRegister: (username: string, email:string, password: string) => Promise<{success: boolean, message: string}>;
+
 }
 
 export interface ArticleContextType{
@@ -18,4 +21,7 @@ export interface ArticleContextType{
     loading: boolean;
     fetchCreateArticle: (newArticle: Partial<Article>) => Promise<{success: boolean, message: string}>;
     fetchDeleteArticle: (id: number) => Promise<void>;
+    fetchGetFavorite: () => Promise<void>;
+    fetchUpdatedArticle: (updatedArticle: Partial<Article>, id: number) =>Promise<void>;
 }
+

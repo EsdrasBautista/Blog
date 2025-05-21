@@ -1,100 +1,149 @@
-import React, { use, useEffect, useState } from "react";
+import React from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { SearchBar } from "./searchBar";
-import { Article, NavbarProps } from "@/types/article";
-import toast from 'react-hot-toast';
+import { NavbarProps } from "@/types/article";
+import {faSignInAlt,faSignOutAlt,faPlus,faHeart,faUser,faUserPlus,faComputer} from "@fortawesome/free-solid-svg-icons";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { useArticleContext } from "@/context/ArticleProvider";
+import { useAuth } from "@/context/AuthProvider";
+import { useRouter } from "next/navigation";
+import Swal from "sweetalert2";
+
+const Navbar: React.FC<NavbarProps> = ({ articles, setFilteredArticles, hableOpenModal }) => {
+  const { fetchGetFavorite } = useArticleContext();
+  const { isAuthenticated, logout, nameAuthor } = useAuth();
+  const router = useRouter();
 
 
+  const handleLogout = async () => {
+    try {
+      await fetch(`http://localhost:5000/logout`, {
+        method: "POST",
+        credentials: "include",
+      });
 
-const Navbar: React.FC<NavbarProps> = ({articles,setFilteredArticles, hableOpenModal}) => {
-
-    const [isAuthenticated, setIsAuthenticated] = useState(false);
-    const router = useRouter();
-
-    useEffect(() => {
-        
-        const ckeckAuth = async () => {
-            try{
-                const response = await fetch(`http://localhost:5000/check-auth`,{
-                    method: 'GET',
-                    credentials: 'include',
-                })
-                const data = await response.json();
-                setIsAuthenticated(data.autenticado);
-            }catch(error){
-                console.log("error en: ", error)
-            }
-        }
-
-        ckeckAuth();
-    },[])
-
-    const handleLogout = async () => {
-        
-        try {
-            const response = await fetch(`http://localhost:5000/logout`, {
-                method: 'POST',
-                credentials: 'include',
-            })
-            const data = await response.json();
-            setIsAuthenticated(false);
-            toast.success(data.message + " 🎉");
-            router.push("/");
-
-        } catch (error) {
-            toast.error("Error al desloguearse")
-            console.log("error en: ", error)
-        }
+      if (window.location.pathname === "/") {
+        window.location.reload();
+      } else {
+        router.push("/");
+      }
+      logout();
+    } catch (error) {
+      Swal.fire({
+        icon: "error",
+        title: "Error al cerrar sesión",
+        text: "No se pudo cerrar la sesión correctamente.",
+      });
     }
+  };
 
+  const confirmLogOut = () => {
+    Swal.fire({
+      title: "¿Cerrar sesión?",
+      text: "Tu sesión se cerrará en este dispositivo.",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#3085d6",
+      cancelButtonColor: "#d33",
+      confirmButtonText: "Sí, cerrar sesión",
+    }).then((result) => {
+      if (result.isConfirmed) {
+        Swal.fire({
+          title: "Sesión cerrada",
+          icon: "success",
+          showConfirmButton: false,
+          timer: 1300,
+        }).then(() => handleLogout());
+      }
+    });
+  };
+
+ 
+  return (
     
+    <nav className="bg-gray-600 sticky top-0 z-50 shadow-md py-4">
+      <div className="container mx-auto px-4 flex flex-col md:flex-row items-center justify-between gap-4">
 
-    return(
-        <nav className="bg-indigo-600 py-4 text-white">
-            <div className="container mx-auto flex justify-between items-center">
-               <div className="flex items-center space-x-4"> 
-                    <a href="/" className="text-xl font-bold">Blog</a>
-                    <SearchBar
-                        articles={articles}
-                        setFilteredArticles={setFilteredArticles} // estado para filtrar los articulos
-                    />
-               </div>
-               <ul className="flex space-x-4 items-center">
-                    
-                    {isAuthenticated ? (
-                        <>  
-                            <li className="flex items-center space-x-2">
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                    <path d="M10 2a8 8 0 1 0 0 16 8 8 0 0 0 0-16zM8 9h4v1H8V9zm0 2h4v1H8v-1z" />
-                                </svg>
-                                <button onClick={hableOpenModal} className="text-indigo-600 hover:underline m-1 inline-block">
-                                    <span className="text-white font-semibold hover:text-gray-300 cursor-pointer">Crear Articulo </span>
-                                </button>
-                            </li>
-                            <li className="flex items-center space-x-2">
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                    <path fillRule="evenodd" d="M10 2a8 8 0 1 0 0 16 8 8 0 0 0 0-16zM8 9h4v1H8V9zm0 2h4v1H8v-1z" clipRule="evenodd" />
-                                </svg>
-                                <button onClick={handleLogout} className="text-indigo-600 hover:underline m-1 inline-block">
-                                    <span className="text-white font-semibold hover:text-gray-300 cursor-pointer">Logout </span>
-                                </button>
-                            </li>
-                        </>
-                        
-                    ) : (
-                        <li className="flex items-center space-x-2">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                <path fillRule="evenodd" d="M10 2a8 8 0 1 0 0 16 8 8 0 0 0 0-16zM8 9h4v1H8V9zm0 2h4v1H8v-1z" clipRule="evenodd" />
-                            </svg>
-                            <Link href="/pages/login" className="text-indigo-600 hover:underline m-1 inline-block">
-                                <span className="text-white font-semibold hover:text-gray-300 cursor-pointer">Login </span>
-                            </Link>                    
-                        </li>
-                    )}
-                </ul>
-            </div>
-        </nav>
-    )
-}
+        <div className="flex items-center gap-6 w-full md:w-auto justify-between text-white">
+          <a href="/" className="flex items-center gap-2 text-white cursor-pointer">
+            <FontAwesomeIcon icon={faComputer} className="h-8 w-8" />
+            <span className="text-2xl font-bold">MyBlog</span>
+          </a>
+
+          <div className="hidden md:block w-full max-w-md">
+            <SearchBar articles={articles} setFilteredArticles={setFilteredArticles} />
+          </div>
+        </div>
+
+
+        <ul className="flex flex-wrap justify-center items-center gap-5 text-white">
+          {isAuthenticated ? (
+            <>
+              <li>
+                <button
+                  onClick={fetchGetFavorite}
+                  className="flex items-center gap-2 hover:text-gray-300 transition duration-200 cursor-pointer"
+                >
+                  <FontAwesomeIcon icon={faHeart} className="h-5 w-5" />
+                  Mis Favoritos
+                </button>
+              </li>
+              <li>
+                <button
+                  onClick={hableOpenModal}
+                  className="flex items-center gap-2 hover:text-gray-300 transition duration-200 cursor-pointer"
+                >
+                  <FontAwesomeIcon icon={faPlus} className="h-5 w-5" />
+                  Crear Artículo
+                </button>
+              </li>
+              <li>
+                <a href="/" className="flex items-center gap-2 text-white cursor-pointer">
+                  <FontAwesomeIcon icon={faComputer} className="h-8 w-8" />
+                  <span className="flex items-center gap-2 hover:text-gray-300 transition duration-200 cursor-pointer">Inicio</span>
+                </a>
+              </li>
+              <li>
+                <button
+                  onClick={confirmLogOut}
+                  className="flex items-center gap-2 hover:text-gray-300 transition duration-200 cursor-pointer"
+                >
+                  <FontAwesomeIcon icon={faSignOutAlt} className="h-5 w-5" />
+                  Cerrar sesión
+                </button>
+              </li>
+              
+              <li className="flex items-center gap-2 text-sm text-white font-medium">
+                <FontAwesomeIcon icon={faUser} className="h-5 w-5" />
+                {nameAuthor?.toUpperCase()}
+              </li>
+            </>
+          ) : (
+            <>
+              <li>
+                <Link
+                  href="/pages/login"
+                  className="flex items-center gap-2 hover:text-gray-300 transition duration-200 cursor-pointer"
+                >
+                  <FontAwesomeIcon icon={faSignInAlt} className="h-5 w-5" />
+                  Iniciar sesión
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="/pages/create"
+                  className="flex items-center gap-2 hover:text-gray-300 transition duration-200 cursor-pointer"
+                >
+                  <FontAwesomeIcon icon={faUserPlus} className="h-5 w-5" />
+                  Registrarse
+                </Link>
+              </li>
+            </>
+          )}
+        </ul>
+      </div>
+    </nav>
+  );
+};
+
 export default Navbar;

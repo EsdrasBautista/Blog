@@ -6,13 +6,21 @@ import Layout from "../../../Components/layout";
 import { Article } from "@/types/article";
 import { useArticleContext } from "@/context/ArticleProvider";
 import { CreateArticleModal } from "@/app/Components/CreateArticleModal";
+import { useAuth } from "@/context/AuthProvider";
+import { UpdateArticleModal } from "@/app/Components/ActualizarArticuloModal";
 
 
 const ArticlePage = ({ params }: { params: Promise<{ id: string }> }) => {
 
     const [article, setArticle] = useState<Article | null>(null);
-    const { fetchArticleById, fetchCreateArticle } = useArticleContext();
+    const { fetchArticleById, fetchCreateArticle, fetchUpdatedArticle} = useArticleContext();
     const [isModal, SetisModal] = useState(false);
+    const [isModalUpdate, SetisModalUpdate] = useState(false);
+    const {userId} = useAuth();
+
+    const openeModalUpdate = () => SetisModalUpdate(true);
+    const closeModalUpdate = () => SetisModalUpdate(false);
+
 
     
     const openeModal = () => SetisModal(true);
@@ -21,16 +29,18 @@ const ArticlePage = ({ params }: { params: Promise<{ id: string }> }) => {
     useEffect(() => {
         const fetchArticle = async () => {
             try {
-                const id = await params.then(p => p.id);
-                const articleData = await fetchArticleById(Number(id));
+                const resolveParams = await params;
+                const articleData = await fetchArticleById(parseInt(resolveParams.id));
                 setArticle(articleData);
             } catch (error) {
                 console.error("Error al obtener el articulo: ", error);
             }
         };
         fetchArticle();
-    }, [params, fetchArticleById]);
-
+    }, [params, fetchArticleById])
+    
+    const isAuthor = userId === article?.user_id
+    console.log("usuario: ",userId, " usuarioArticulo: ", article?.user_id, " Es autor: ", isAuthor )
 
     if (!article) {
         return (
@@ -42,13 +52,19 @@ const ArticlePage = ({ params }: { params: Promise<{ id: string }> }) => {
                     <a href="/" className="text-indigo-600 hover:underline mt-4 inline-block text-center">Volver a la lista de artículos</a>
                 </div>
 
-                {isModal &&
+                <div
+                    className={`fixed inset-0 z-50 flex items-center justify-center transition-opacity duration-300 ${isModal ? "opacity-100 visible" : "opacity-0 invisible"}`}
+                    aria-hidden={!isModal}
+                    >
+                    {isModal && (
                     <CreateArticleModal onClose={closeModal} onSubmit={fetchCreateArticle} />
-                }
+                    )}
+                </div>
 
             </Layout>
         )
     }
+    
 
     return (
         <Layout hableOpenModal={openeModal}>
@@ -65,17 +81,43 @@ const ArticlePage = ({ params }: { params: Promise<{ id: string }> }) => {
                         <a href="/" className="inline-block bg-indigo-600 text-white px-6 py-2 rounded-full hover:bg-indigo-800 transition duration-300 shadow-md">
                             ← Volver a la lista de artículos
                         </a>
-                        <button className="inline-block bg-gray-500 text-white px-6 py-2 rounded-full hover:bg-gray-700 transition duration-300 shadow-md cursor-pointer">
-                            Actualizar Datos Articulo
-                        </button>
-                        
+
+                        {isAuthor && (
+                            <button className="inline-block bg-gray-500 text-white px-6 py-2 rounded-full hover:bg-gray-700 transition duration-300 shadow-md cursor-pointer"
+                                onClick={openeModalUpdate}>
+                                Actualizar Datos Articulo
+                            </button>
+                        )}
                     </div>
                 </div>
             </div>
 
-            {isModal &&
-                    <CreateArticleModal onClose={closeModal} onSubmit={fetchCreateArticle} />
-            }
+            <div
+            className={`fixed inset-0 z-50 flex items-center justify-center transition-opacity duration-300 ${isModal ? "opacity-100 visible" : "opacity-0 invisible"}`}
+            aria-hidden={!isModal}
+            >
+            {isModal && (
+              <CreateArticleModal onClose={closeModal} onSubmit={fetchCreateArticle} />
+            )}
+            </div>
+
+            <div
+            className={`fixed inset-0 z-50 flex items-center justify-center transition-opacity duration-300 ${isModalUpdate ? "opacity-100 visible" : "opacity-0 invisible"}`}
+            aria-hidden={!isModalUpdate}
+            >
+            {isModalUpdate && (
+                <UpdateArticleModal
+                    article={article}
+                    onClose={closeModalUpdate}
+                    onUpdate={async (updatedArticle) => {
+                        if (article) {
+                            await fetchUpdatedArticle(updatedArticle, article.id);
+                        }
+                    }}
+                />
+            )}
+            </div>
+            
         </Layout>
 
     )

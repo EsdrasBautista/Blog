@@ -2,7 +2,7 @@
 import { Article } from '@/types/article';
 import { ArticleContextType } from '@/types/auth';
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import toast from 'react-hot-toast';
+import Swal from 'sweetalert2'
 
 
 const ArticleContext = createContext<ArticleContextType | undefined>(undefined);
@@ -11,6 +11,36 @@ export const ArticleContextProvider: React.FC<{ children: React.ReactNode }> = (
     const [articles, setArticles] = useState<Article[]>([]);
     const [filteredArticles, setFilteredArticles] = useState<Article[]>([]);
     const [loading, setLoading] = useState<boolean>(true);
+
+    const SinFavotirosAlert = () => {
+        Swal.fire({
+          title: 'Alerta',
+          text: 'No tienes articulos favoritos',
+          icon: 'warning',
+          confirmButtonColor: '#3085d6',
+          confirmButtonText: 'Aceptar'
+        })
+    }
+
+    const ErrorMessage = (titulo: string, contenido: string) =>{
+      Swal.fire({
+            title: titulo,
+            text: contenido,
+            icon: 'warning',
+            confirmButtonColor: '#3085d6',
+            confirmButtonText: 'Aceptar'
+          })
+    }
+
+    const SuccesMessage =  (titulo: string, contenido: string) =>{
+      Swal.fire({
+            title: titulo,
+            text: contenido,
+            icon: 'success',
+            confirmButtonColor: '#3085d6',
+            confirmButtonText: 'Aceptar'
+          })
+    }
 
     // obtener todos los articulos
     useEffect(() => {
@@ -40,15 +70,20 @@ export const ArticleContextProvider: React.FC<{ children: React.ReactNode }> = (
 
 
       try{
-        const response = await  fetch(`http://localhost:5000/article/${id}`);
+        const response = await  fetch(`http://localhost:5000/article/${id}`,{
+          method: 'GET',
+          credentials: 'include'
+        });
         
         if(!response.ok) {
+          ErrorMessage("Error",`Error al obtener el articulo por su id ${id}`)
           throw new Error("Error Articulo no encontrado");
         }
         const data = await response.json();
         return data; // Retorna el artículo encontrado
       }catch(error){
         console.error(`Error al obtener el articulo por su id ${id} : `, error);
+        ErrorMessage("Error",`Error al obtener el articulo por su id ${id}, try catch`)
         return null; // Retorna null si no se encuentra el artículo
       }
     }
@@ -93,15 +128,16 @@ export const ArticleContextProvider: React.FC<{ children: React.ReactNode }> = (
         if(response.ok){
           const data = await response.json();
           setArticles(prevArticles => [...prevArticles, data])
-          toast.success("Artículo creado con éxito 🎉");
+          SuccesMessage("Creado","Articulo Creado con exito")
           return {success:true,message: "Articulo creado con exito"};
         }else{
-          toast.error("Error del servidor al crear el artículo");
+          ErrorMessage("Error", "Error al crear el Articulo")
           return {success:false,message: "Error al crear el articulo"};
         }
         
       }catch(error){
         console.error("Error al crear el articulo: ",error);
+        ErrorMessage("Error", "Error al crear el Articulo")
         return {success:false,message:"Error al crear el articulo"};
       }
     }
@@ -115,22 +151,72 @@ export const ArticleContextProvider: React.FC<{ children: React.ReactNode }> = (
           },
           credentials: 'include'
         })
+        const data = await response.json();
         if(!response.ok){
-          throw new Error("Hubo un error al intentar eliminar un arituclo")
+          ErrorMessage("Error",data.message)
+          return 
+        }else{
+          setArticles(prev => prev.filter(article => article.id !== id))
         }
-        const data = await response.json()
-        setArticles(prev => prev.filter(article => article.id !== id))
-        toast.success(data.message + " 🎉");
-        
+      
       }catch(error){
-        toast.error("Error al borrar el articulo!")
+        ErrorMessage("Error","Hubo un error al intentar eliminar un arituclo")
         console.error("Error al borrar el articulo: ", error);
       }
     }
 
+    const fetchGetFavorite = async() =>{
+      try{
+        const response = await fetch('http://localhost:5000/get-favorites',{
+          method: 'GET',
+          credentials: 'include',
+          headers: {'Content-type': 'application/json'},
+          
+        })
+        const data = await response.json()
+        if (!response.ok) {
+          ErrorMessage("Error","Error al obtener los articulos favoritos" )
+          throw new Error("Error en el fetch para obtener los favoritos")
+        }
+
+        
+        if (!Array.isArray(data) || data.length === 0) {
+          SinFavotirosAlert() 
+          return
+        }
+        
+        setArticles(data)
+
+      }catch(error){
+        console.error("Error al obtener los favoritos ", error)
+        ErrorMessage("Error","Error al obtener los articulos favoritos" )
+      }
+    }
+
+    const fetchUpdatedArticle = async(updatedArticle: Partial<Article>, id: number): Promise<void> =>{
+      try{
+        const response = await fetch(`http://localhost:5000/update-article/${id}`,{
+          method: 'PUT',
+          headers: {
+            'Content-type': 'application/json'
+          },
+          credentials: 'include',
+          body: JSON.stringify(updatedArticle)
+        })
+        if(!response.ok){
+          ErrorMessage("Error", "No se pudo actualizar el artículo.");
+          return
+        }
+        const updated = await response.json();
+        setArticles(prev => prev.map(article => article.id === updated.id ? updated : article))
+
+      }catch(error){
+        ErrorMessage("Error","Ocurrio un problema en la actualizacion del articulo")
+      }
+    }
 
   return(
-    <ArticleContext.Provider value={{ articles,  filteredArticles, setFilteredArticles, add_favorite, loading,fetchArticleById, fetchCreateArticle, fetchDeleteArticle }}>
+    <ArticleContext.Provider value={{ articles,  filteredArticles, setFilteredArticles, add_favorite, loading,fetchArticleById, fetchCreateArticle, fetchDeleteArticle, fetchGetFavorite,fetchUpdatedArticle }}>
         {children}
     </ArticleContext.Provider>
   )

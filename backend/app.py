@@ -31,7 +31,17 @@ def home():
 @app.route('/articles', methods = ['GET'])
 def get_articles():
     articles = Article.query.all()
-    return jsonify([{'id': article.id, 'title': article.title, 'content': article.content, 'imagen_url': article.imagen_url, 'author': article.author.username, 'fecha_creacion': article.fecha_creacion} for article in articles])
+    return jsonify([
+        {'id': article.id, 
+         'title': article.title, 
+         'content': article.content, 
+         'imagen_url': article.imagen_url, 
+         'author': article.author.username, 
+         'fecha_creacion': article.fecha_creacion, 
+         'is_favorite': article.is_favorite,
+         'user_id': article.user_id
+         }for article in articles
+         ])
     
 
 #Crear articulo
@@ -39,7 +49,11 @@ def get_articles():
 def create_article():
     data = request.get_json()
     fecha_actual = datetime.datetime.now()
-    new_article = Article(title=data['title'], content=data['content'], imagen_url=data['imagen_url'], fecha_creacion=fecha_actual, user_id=session.get('user_id'), is_favorite=False)
+    user_id = session.get('user_id')
+    if not user_id:
+        return jsonify({'error':'El usuario no esta autenticado'}),401
+    
+    new_article = Article(title=data['title'], content=data['content'], imagen_url=data['imagen_url'], fecha_creacion=fecha_actual, user_id=user_id, is_favorite=False)
     db.session.add(new_article)
     db.session.commit()
     return jsonify({
@@ -61,8 +75,7 @@ def update_article(article_id):
     article = Article.query.get_or_404(article_id)
     article.title = data['title']
     article.content = data['content']
-    if data.get('imagen_url'): # verifica si la imagen_url existe
-        article.imagen_url = data['imagen_url']
+    article.imagen_url = data['imagen_url']
 
     db.session.commit()
     return jsonify({
@@ -72,6 +85,7 @@ def update_article(article_id):
         'imagen_url': article.imagen_url,
         'author': article.author.username,
         'fecha_creacion': article.fecha_creacion,
+        'user_id': article.user_id,
         'is_favorite': article.is_favorite
     }), 201
 
@@ -79,30 +93,45 @@ def update_article(article_id):
 @app.route('/article/<int:article_id>', methods=['GET'])
 def view_article(article_id):
    article = Article.query.get_or_404(article_id)
-   return jsonify({'id': article.id, 'title': article.title, 'content': article.content, 'imagen_url': article.imagen_url, 'author': article.author.username, 'fecha_creacion': article.fecha_creacion}),200
+   return jsonify({'id': article.id, 'title': article.title, 'content': article.content, 'imagen_url': article.imagen_url, 'author': article.author.username, 'fecha_creacion': article.fecha_creacion, 'user_id': article.user_id}),200
 
 
 #Eliminar articulo segun id
 @app.route('/delete-article/<int:article_id>', methods=['DELETE'])
 def delete_article(article_id):
+    if 'user_id' not in session:
+        return jsonify({'message': 'No autorizado'}), 401
     article = Article.query.get_or_404(article_id)
-    db.session.delete(article)
-    db.session.commit()
-    return jsonify({'message': f'Articulo: {article.title} eliminado con exito!'}), 200
+    if article.user_id != session['user_id']:
+        return jsonify({'message': 'No puedes eliminar articulos que tu no hayas creado'}), 403
+    try:
+        db.session.delete(article)
+        db.session.commit()
+        return jsonify({'message': f'Articulo: {article.title} eliminado con exito!'}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'message': 'Error al eliminar el articulo', 'error': str(e)})
+
 
 
 #-----------------------------------------------ENDPOINTS PARA USUARIOS--------------------------------------------------#
 @app.route('/register', methods= ['POST'])
 def register():
     data = request.get_json()
-    if User.query.filter_by(email=data['email']).first():
+    if User.query.filter_by(email=data['email']).first() is not None:
         return jsonify({'message': 'El correo ya existe!'}), 400
     
     new_user = User(username=data['username'], email=data['email'])
     new_user.set_password(data['password'])
     db.session.add(new_user)
     db.session.commit()
-    return jsonify({'message': f'Usuario {new_user.username} creado con exito!'}), 201
+    session['user_id'] = new_user.id
+    return jsonify({
+        'message': f'Usuario {new_user.username} registrado con exito',
+        'username': new_user.username,
+        'id': new_user.id
+    }), 201
+    
 
 
 @app.route('/login', methods=['POST'])
@@ -120,13 +149,17 @@ def login():
 #verifica si el usuario esta autenticado
 @app.route('/check-auth', methods=['GET'])
 def check_auth():
-    if 'user_id' in session:
-        idU = session['user_id']
-        user = User.query.filter_by(id=idU).first()
-        return jsonify({'autenticado': True, 'userName': user.username }), 200
+    user_id = session.get('user_id')
+    if user_id:
+        user = User.query.get(user_id)
+        if user:
+            return jsonify({'autenticado': True, 'userName': user.username, 'userid': user.id }), 200
+        else:
+             return jsonify({'autenticado': False}), 401
     else:
         return jsonify({'autenticado': False}), 401
-    
+
+  
 
 @app.route('/logout', methods=['POST'])
 def logout():
@@ -148,11 +181,32 @@ def add_favorite(article_id):
         db.session.commit()
         return jsonify({'message': 'Articulo agregado a favoritos!'}), 201
     else:
-        print(is_favorite)
         article.is_favorite = is_favorite
         db.session.commit()
         return jsonify({'message': 'Articulo eliminado de favoritos!'}), 200
         
+@app.route('/get-favorites', methods=['GET'])
+def get_favorites():
+    user_id = session.get('user_id')
+    if not user_id:
+        return jsonify({'error':'El usuario no esta autenticado'}), 401
+     
+    favorites_Art = Article.query.filter_by(is_favorite = True).all()
+    articles_list = [
+        {
+            'id': article.id,
+            'title': article.title,
+            'content': article.content,
+            'imagen_url': article.imagen_url,
+            'fecha_creacion': article.fecha_creacion,
+            'user_id': article.user_id,
+            'author': article.author.username,  
+            'is_favorite': article.is_favorite
+        } for article in favorites_Art
+    ]
+    return jsonify(articles_list),200
+    
+
 
 #------------------------------------------------------------------------------------------------------------------------//
 if __name__ == '__main__':

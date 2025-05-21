@@ -6,7 +6,9 @@ export  interface Article {
   author: string;
   fecha_creacion: string;
   is_favorite: boolean;
+  user_id: number | null;  
 }
+
 
 export interface NavbarProps{
     articles: Article[];
@@ -15,7 +17,7 @@ export interface NavbarProps{
 }
 
 export interface CardProps {
-  article: Article;
+  id: number;
   fetchDeleteArticle: (id: number) => Promise<void>;
 
 }
@@ -34,4 +36,10 @@ export interface LayoutProps {
 export interface CreateArticleModalProps{
   onClose: () => void;
   onSubmit: (newArticle: Partial<Article>) => Promise<{success:boolean, message:string}>;
+}
+
+export interface UpdateArticleModalProps {
+  article: Article;
+  onClose: () => void;
+  onUpdate: (updatedArticle: Partial<Article>) => Promise<void>;
 }
